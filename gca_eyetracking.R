@@ -9,19 +9,6 @@ library("interactions")
 
 all_data<- read.csv('all_ages_face_dwell_time_last_half.csv')
 
-#epds_scores <- read.csv('epds_scores.csv')
-#epds_scores$subject <- paste0("sub-", epds_scores$subject)
-#names(epds_scores)[names(epds_scores) == "subject"] <- "Participant"
-#names(epds_scores)[names(epds_scores) == "age"] <- "Age"
-
-#all_data <- all_data %>%
-#left_join(epds_scores %>% select(Participant, Age, score), 
-#by = c("Participant", "Age"))
-
-#all_data$score[all_data$score == "missing"] <- NA
-
-#names(all_data)[names(all_data) == "score"] <- "EPDS"
-
 # For each condition, within each subject , remove trials where
 # DwellTimeDistractor is less than 2.5 SDs below the mean or
 # 2.5 SDs above the mean
