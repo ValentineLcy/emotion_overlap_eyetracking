@@ -159,7 +159,7 @@ fit_mod_control <- function(predictor_time, data_input) {
     draw.poly  = TRUE
   )
   
-  data_poly$y_star <- data_poly$DwellTimeFace / 3000
+  data_poly$y_star <- (data_poly$DwellTimeFace +1) / 3001
   
   mod <- glmmTMB(
     y_star ~ Emotion * epds_total * (poly1 + poly2) + MeanOpticalFlow +
@@ -195,11 +195,6 @@ run_posthoc <- function(mod, data_poly) {
   
   # Emotion:epds_total:poly1
   cat("\n--- Emotion:epds_total:poly1 ---\n")
-  emtrends_triple <- emtrends(mod, ~ Emotion | epds_total,
-                              var = "poly1",
-                              at  = list(epds_total = epds_levels))
-  print(emtrends_triple)
-  print(pairs(emtrends_triple, adjust = "tukey"))
   
   # JOHNSON-NEYMAN
   jn_trends_byemotion <- emtrends(mod, ~ epds_total | Emotion,
