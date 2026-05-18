@@ -69,7 +69,7 @@ filter_trials <- function(data) {
       DwellTimeFace >= lower_bound & 
         DwellTimeFace <= upper_bound
     ) %>%
-    select(-mean_dwell, -sd_dwell, -lower_bound, -upper_bound)  # Remove intermediate columns
+    dplyr::select(-mean_dwell, -sd_dwell, -lower_bound, -upper_bound)  # Remove intermediate columns
 }
 
 data_bai_filtered <- filter_trials(data_bai)
@@ -159,7 +159,7 @@ fit_mod_control <- function(predictor_time, data_input) {
     draw.poly  = FALSE
   )
   
-  data_poly$y_star <- data_poly$DwellTimeFace / 3000
+  data_poly$y_star <- (data_poly$DwellTimeFace +1) / 3001
   
   mod <- glmmTMB(
     y_star ~ Emotion * bai_total * (poly1 + poly2) + MeanOpticalFlow +
