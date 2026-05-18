@@ -13,6 +13,9 @@ library("reshape2")
 
 # DATA ----
 all_data <- read.csv('all_ages_face_dwell_time_last_half.csv')
+motion <- read.csv('video_motion_brightness_contrast.csv')
+head(all_data)
+head(motion)
 ages     <- read.csv('age_in_days.csv', sep=';')
 epds_3   <- read.csv('3_EPDS.csv',  sep = ';')
 epds_6   <- read.csv('6_EPDS.csv',  sep = ';')
