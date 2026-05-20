@@ -9,65 +9,88 @@ library("interactions")
 library("emmeans")
 library('DHARMa')
 
+filter<-TRUE
+
+# outliers filters (±2.5 SD par participant × Age × Emotion) ----
+filter_trials <- function(data) {
+  data %>%
+    group_by(Participant, Age, Emotion) %>%
+    mutate(
+      mean_dwell  = mean(DwellTimeFace, na.rm = TRUE),
+      sd_dwell    = sd(DwellTimeFace,   na.rm = TRUE),
+      lower_bound = mean_dwell - 2.5 * sd_dwell,
+      upper_bound = mean_dwell + 2.5 * sd_dwell
+    ) %>%
+    filter(
+      DwellTimeFace >= lower_bound &
+        DwellTimeFace <= upper_bound
+    ) %>%
+    dplyr::select(-mean_dwell, -sd_dwell, -lower_bound, -upper_bound) %>%
+    ungroup()
+}
+
+code.poly <- function(df=NULL, predictor=NULL, poly.order=NULL, orthogonal=TRUE, draw.poly=TRUE){
+  require(reshape2)
+  require(ggplot2)
+  
+  raw <- (orthogonal-1)^2
+  
+  if (!predictor %in% names(df)){
+    warning(paste0(predictor, " is not a variable in your data frame. Check spelling and try again"))
+  }
+  
+  predictor.vector <- df[,which(colnames(df)==predictor)]
+  predictor.vector <- df[[predictor]] 
+  
+  predictor.indices <- as.numeric(as.factor(predictor.vector))
+  
+  df$temp.predictor.index <- predictor.indices
+  
+  predictor.polynomial <- poly(x = unique(sort(predictor.vector)),
+                               degree = poly.order, raw=raw)
+  
+  df[, paste("poly", 1:poly.order, sep="")] <-
+    predictor.polynomial[predictor.indices, 1:poly.order]
+  
+  if (draw.poly == TRUE){
+    df.poly <- unique(df[c(predictor, paste("poly", 1:poly.order, sep=""))])
+    df.poly.melt <- melt(df.poly, id.vars=predictor)
+    
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly1"] <- "Linear"
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly2"] <- "Quadratic"
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly3"] <- "Cubic"
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly4"] <- "Quartic"
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly5"] <- "Quintic"
+    levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly6"] <- "Sextic"
+    
+    colnames(df.poly.melt)[colnames(df.poly.melt) == "variable"] <- "Order"
+    
+    poly.plot <- ggplot(df.poly.melt, aes(y=value, color=Order))+
+      aes_string(x=predictor)+
+      geom_line()+
+      xlab(paste0(predictor, " (transformed polynomials)"))+
+      ylab("Transformed value")+
+      scale_color_brewer(palette="Set1")+
+      theme_bw()
+    
+    #print(poly.plot)
+  }
+  
+  colnames(df)[colnames(df) == "temp.predictor.index"] <- paste0(predictor,".Index")
+  return(df)
+}
+
 time_periods<-c('first_half', 'last_half')
 
 for(time_period in time_periods) {
   all_data <- read.csv(paste0('./data/all_ages_face_dwell_time_', time_period, '.csv'))
+  if(filter) {
+    all_data <- filter_trials(all_data)
+  }
   
   predictor <- "Age"
   poly.order <- 2
   orthogonal <- TRUE
-  
-  code.poly <- function(df=NULL, predictor=NULL, poly.order=NULL, orthogonal=TRUE, draw.poly=TRUE){
-    require(reshape2)
-    require(ggplot2)
-    
-    raw <- (orthogonal-1)^2
-    
-    if (!predictor %in% names(df)){
-      warning(paste0(predictor, " is not a variable in your data frame. Check spelling and try again"))
-    }
-    
-    predictor.vector <- df[,which(colnames(df)==predictor)]
-    predictor.vector <- df[[predictor]] 
-    
-    predictor.indices <- as.numeric(as.factor(predictor.vector))
-    
-    df$temp.predictor.index <- predictor.indices
-    
-    predictor.polynomial <- poly(x = unique(sort(predictor.vector)),
-                                 degree = poly.order, raw=raw)
-    
-    df[, paste("poly", 1:poly.order, sep="")] <-
-      predictor.polynomial[predictor.indices, 1:poly.order]
-    
-    if (draw.poly == TRUE){
-      df.poly <- unique(df[c(predictor, paste("poly", 1:poly.order, sep=""))])
-      df.poly.melt <- melt(df.poly, id.vars=predictor)
-      
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly1"] <- "Linear"
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly2"] <- "Quadratic"
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly3"] <- "Cubic"
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly4"] <- "Quartic"
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly5"] <- "Quintic"
-      levels(df.poly.melt$variable)[levels(df.poly.melt$variable)=="poly6"] <- "Sextic"
-      
-      colnames(df.poly.melt)[colnames(df.poly.melt) == "variable"] <- "Order"
-      
-      poly.plot <- ggplot(df.poly.melt, aes(y=value, color=Order))+
-        aes_string(x=predictor)+
-        geom_line()+
-        xlab(paste0(predictor, " (transformed polynomials)"))+
-        ylab("Transformed value")+
-        scale_color_brewer(palette="Set1")+
-        theme_bw()
-      
-      #print(poly.plot)
-    }
-    
-    colnames(df)[colnames(df) == "temp.predictor.index"] <- paste0(predictor,".Index")
-    return(df)
-  }
   
   data.gca.beta <- code.poly(df=all_data, predictor="Age", poly.order=2, orthogonal=TRUE, draw.poly=TRUE)
   
@@ -113,8 +136,12 @@ for(time_period in time_periods) {
     ) +
     theme_bw()
   print(g)
+  out_fname=paste0('./figures/eyetracking_gca_age_in_months_',time_period)
+  if(!filter) {
+    out_fname=paste0(out_fname,'_unfiltered')
+  }
   ggsave(
-    paste0('./figures/eyetracking_gca_age_in_months_',time_period,'.pdf'),
+    paste0(out_fname,'.pdf'),
     g,
     width = 6.5,
     height = 3.5,
