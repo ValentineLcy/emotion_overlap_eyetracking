@@ -11,6 +11,15 @@ library('DHARMa')
 library('interactions')
 library("reshape2")
 
+log_file <- "./results/gca_epds_eyetracking_output.txt"
+
+dir.create(dirname(log_file), recursive = TRUE, showWarnings = FALSE)
+
+log_con <- file(log_file, open = "wt")
+
+sink(log_con, split = TRUE)
+sink(log_con, type = "message")
+
 # outliers filters (±2.5 SD par participant × Age × Emotion) ----
 filter_trials <- function(data) {
   data %>%
@@ -66,15 +75,15 @@ code.poly <- function(df=NULL, predictor=NULL, poly.order=NULL,
     
     colnames(df.poly.melt)[colnames(df.poly.melt) == "variable"] <- "Order"
     
-    # poly.plot <- ggplot(df.poly.melt, aes(y = value, color = Order)) +
-    #   aes_string(x = predictor) +
-    #   geom_line() +
-    #   xlab(paste0(predictor, " (transformed polynomials)")) +
-    #   ylab("Transformed value") +
-    #   scale_color_brewer(palette = "Set1") +
-    #   theme_bw()
+    poly.plot <- ggplot(df.poly.melt, aes(y = value, color = Order)) +
+      aes_string(x = predictor) +
+      geom_line() +
+      xlab(paste0(predictor, " (transformed polynomials)")) +
+      ylab("Transformed value") +
+      scale_color_brewer(palette = "Set1") +
+      theme_bw()
     
-    #print(poly.plot)
+    print(poly.plot)
   }
   
   colnames(df)[colnames(df) == "temp.predictor.index"] <- paste0(predictor, ".Index")
@@ -83,21 +92,26 @@ code.poly <- function(df=NULL, predictor=NULL, poly.order=NULL,
 
 
 # FONCTION model fit ----
-fit_mod3 <- function(predictor_time, data_input) {
+fit_mod3 <- function(predictor_time, data_input, motion_control=FALSE) {
   
   data_poly <- code.poly(
     df         = data_input,
     predictor  = predictor_time,
     poly.order = 2,
     orthogonal = TRUE,
-    draw.poly  = TRUE
+    draw.poly  = FALSE
   )
   
   data_poly$y_star <- (data_poly$DwellTimeFace +1)/ 3001
   
+  form_str='y_star ~ Emotion * epds_total * (poly1 + poly2)'
+  if(motion_control) {
+    form_str = paste0(form_str, ' + MeanOpticalFlow')
+  }
+  form_str = paste0(form_str, ' + (1 | Participant)')
+  
   mod <- glmmTMB(
-    y_star ~ Emotion * epds_total * (poly1 + poly2) +
-      (1 | Participant),
+    as.formula(form_str),
     family = beta_family(link = "logit"),
     data   = data_poly
   )
@@ -133,8 +147,9 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
   )
   
   # POST-HOC 1 - Emotion:epds_total:poly1
-  cat("\n--- POST-HOC 1 : Emotion:epds_total:poly1 ---\n")
-  if(anova_results$`Pr(>Chisq)`[11]<0.05) {
+  emotion_epds_poly1_idx=which(rownames(anova_results)=='Emotion:epds_total:poly1')
+  if(anova_results$`Pr(>Chisq)`[emotion_epds_poly1_idx]<0.05) {
+    print("\n--- POST-HOC 1 : Emotion:epds_total:poly1 ---\n")
     emtrends_triple <- emtrends(mod, ~ Emotion | epds_total,
                                 var = "poly1",
                                 at  = list(epds_total = epds_levels))
@@ -181,7 +196,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
            y        = "Différence de pente (poly1)") +
       theme_bw()
     print(p_jn_pairs)
-    out_fname=paste0('./figures/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly1_pairwise.pdf')
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly1_pairwise.pdf')
     ggsave(
       out_fname,
       p_jn_pairs,
@@ -228,7 +243,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
            y        = "poly1 Slope") +
       theme_bw()
     print(p_jn_emotion)
-    out_fname=paste0('./figures/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly1.pdf')
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly1.pdf')
     ggsave(
       out_fname,
       p_jn_emotion,
@@ -237,7 +252,8 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
   }
   
   # POST-HOC 2 - epds_total:poly1
-  if(anova_results$`Pr(>Chisq)`[9]<0.05){
+  epds_poly1_idx=which(rownames(anova_results)=='epds_total:poly1')
+  if(anova_results$`Pr(>Chisq)`[epds_poly1_idx]<0.05){
     cat("\n--- POST-HOC 2 : epds_total:poly1 ---\n")
     emtrends_poly1 <- emtrends(mod, ~ epds_total, var = "poly1",
                                at = list(epds_total = epds_levels))
@@ -246,7 +262,8 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
   }
   
   # POST-HOC 3 - epds_total:poly2
-  if(anova_results$`Pr(>Chisq)`[10]<0.05){
+  epds_poly2_idx=which(rownames(anova_results)=='epds_total:poly2')
+  if(anova_results$`Pr(>Chisq)`[epds_poly2_idx]<0.05){
     cat("\n--- POST-HOC 3 : epds_total:poly2 ---\n")
     emtrends_poly2 <- emtrends(mod, ~ epds_total, var = "poly2",
                                at = list(epds_total = epds_levels))
@@ -255,7 +272,8 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
   }
   
   # POST-HOC 4 - Emotion
-  if(anova_results$`Pr(>Chisq)`[2]<0.05){
+  emotion_main_idx=which(rownames(anova_results)=='Emotion')
+  if(anova_results$`Pr(>Chisq)`[emotion_main_idx]<0.05){
     cat("\n--- POST-HOC 4 : Emotion ---\n")
     emmeans_emotion <- emmeans(mod, ~ Emotion, type = "response")
     print(emmeans_emotion)
@@ -301,6 +319,9 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     orthogonal = TRUE,
     draw.poly  = FALSE
   )
+  if ("MeanOpticalFlow" %in% names(data_poly)) {
+    pred_3levels$MeanOpticalFlow <- mean(data_poly$MeanOpticalFlow, na.rm = TRUE)
+  }
   
   pred_3levels$Fitted <- predict(mod,
                                  newdata = pred_3levels,
@@ -337,11 +358,11 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
                           name   = "EPDS level") +
     labs(title = paste0("DwellTime ~ EPDS * (poly1 + poly2) | ", predictor_time),
          x     = x_label,
-         y     = "DwellTime (proportion)") +
+         y     = "Dwell time (proportion)") +
     theme_bw()
   
   print(p)
-  out_fname=paste0('./figures/epds_eyetracking_gca_',file_suffix,'.pdf')
+  out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'.pdf')
   ggsave(
     out_fname,
     p,
@@ -366,12 +387,9 @@ for(time_period in time_periods) {
   #head(all_data)
   #head(motion)
   ages     <- read.csv('./data/age_in_days.csv', sep=';')
-  #epds_3   <- read.csv('./data/3_EPDS.csv',  sep = ';')
-  epds_3   <- read.csv('./data/3_EPDS.csv')
-  #epds_6   <- read.csv('./data/6_EPDS.csv',  sep = ';')
-  epds_6   <- read.csv('./data/6_EPDS.csv')
-  #epds_12  <- read.csv('./data/12_EPDS.csv', sep = ';')
-  epds_12  <- read.csv('./data/12_EPDS.csv')
+  epds_3   <- read.csv('./data/3_EPDS.csv',  sep = ';')
+  epds_6   <- read.csv('./data/6_EPDS.csv',  sep = ';')
+  epds_12  <- read.csv('./data/12_EPDS.csv', sep = ';')
   
   epds_3$epds_total  <- rowSums(epds_3[,  paste0("epds", 1:10)])
   epds_6$epds_total  <- rowSums(epds_6[,  paste0("epds", 1:10)])
@@ -407,6 +425,7 @@ for(time_period in time_periods) {
   data_epds <- all_data %>%
     left_join(epds_all, by = c("Participant", "Age"), relationship='many-to-many')
   
+  data_epds <- merge(data_epds, motion, by = c("Actor", "Emotion"), all.x = TRUE)
   
   # filtered data ----
   data_epds_raw      <- data_epds
@@ -492,4 +511,86 @@ for(time_period in time_periods) {
             x_label        = "Age (days)",
             file_suffix
   )
+  
+  
+  
+  # MODEL 5 : Age (months) — raw data with motion control ----
+  cat("\n========== MODEL 5 : Age (months) — raw data with motion control==========\n")
+  file_suffix<-paste0('age_in_months_',time_period,'_motion_control_unfiltered')
+  res1  <- fit_mod3("Age", data_epds_raw, motion_control=TRUE)
+  mod1  <- res1$model
+  data1 <- res1$data
+  
+  print(summary(mod1))
+  anova_results<-Anova(mod1, type = 3)
+  print(anova_results)
+  run_diagnostics(mod1)
+  run_posthoc(mod1, data1, anova_results, file_suffix)
+  plot_mod3(mod1, data1,
+            predictor_time = "Age",
+            x_label        = "Age (months)",
+            file_suffix
+  )
+  
+  # MODEL 6 : Age (months) — filtered data with motion control  ----
+  cat("\n========== MODELE 6 : Age (months) — filtered with motion control  ==========\n")
+  file_suffix<-paste0('age_in_months_',time_period,'_motion_control')
+  res2  <- fit_mod3("Age", data_epds_filtered, motion_control=TRUE)
+  mod2  <- res2$model
+  data2 <- res2$data
+  
+  print(summary(mod2))
+  anova_results<-Anova(mod2, type = 3)
+  print(anova_results)
+  run_diagnostics(mod2)
+  run_posthoc(mod2, data2, anova_results, file_suffix)
+  plot_mod3(mod2, data2,
+            predictor_time = "Age",
+            x_label        = "Age (months)",
+            file_suffix
+  )
+  
+  # MODÈLE 7 : Age_in_days — raw data with motion control  ----
+  cat("\n========== MODÈLE 7 : Age_in_days — brut with motion control  ==========\n")
+  file_suffix<-paste0('age_in_days_',time_period,'_motion_control_unfiltered')
+  res3  <- fit_mod3("Age_in_days", data_epds_raw, motion_control=TRUE)
+  mod3  <- res3$model
+  data3 <- res3$data
+  
+  print(summary(mod3))
+  anova_results<-Anova(mod3, type = 3)
+  print(anova_results)
+  run_diagnostics(mod3)
+  run_posthoc(mod3, data3, anova_results, file_suffix)
+  plot_mod3(mod3, data3,
+            predictor_time = "Age_in_days",
+            x_label        = "Age (days)",
+            file_suffix
+  )
+  
+  
+  # MODEL 8 : Age_in_days — filtered data with motion control  ----
+  cat("\n========== MODÈLE 8 : Age_in_days — filtered with motion control  ==========\n")
+  file_suffix<-paste0('age_in_days_',time_period,'_motion_control')
+  res4  <- fit_mod3("Age_in_days", data_epds_filtered, motion_control=TRUE)
+  mod4  <- res4$model
+  data4 <- res4$data
+  
+  print(summary(mod4))
+  anova_results<-Anova(mod4, type = 3)
+  print(anova_results)
+  run_diagnostics(mod4)
+  run_posthoc(mod4, data4, anova_results, file_suffix)
+  plot_mod3(mod4, data4,
+            predictor_time = "Age_in_days",
+            x_label        = "Age (days)",
+            file_suffix
+  )
+  
+  graphics.off()
 }
+
+sink(type = "message")
+sink()
+close(log_con)
+
