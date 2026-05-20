@@ -83,6 +83,7 @@ code.poly <- function(df=NULL, predictor=NULL, poly.order=NULL, orthogonal=TRUE,
 time_periods<-c('first_half', 'last_half')
 
 for(time_period in time_periods) {
+  print(paste0('********************** ', time_period, ' ***************************'))
   all_data <- read.csv(paste0('./data/all_ages_face_dwell_time_', time_period, '.csv'))
   if(filter) {
     all_data <- filter_trials(all_data)
