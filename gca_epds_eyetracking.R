@@ -146,7 +146,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     length.out = 100
   )
   
-  # POST-HOC 1 - Emotion:epds_total:poly1
+  # POST-HOC - Emotion:epds_total:poly1
   emotion_epds_poly1_idx=which(rownames(anova_results)=='Emotion:epds_total:poly1')
   if(anova_results$`Pr(>Chisq)`[emotion_epds_poly1_idx]<0.05) {
     print("\n--- POST-HOC 1 : Emotion:epds_total:poly1 ---\n")
@@ -187,7 +187,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
       geom_line(linewidth = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
       scale_fill_manual(values = c("TRUE" = "blue", "FALSE" = "grey70"),
-                        labels = c("TRUE" = "p < .05", "FALSE" = "p ≥ .05"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
                         name   = "") +
       facet_wrap(~ contrast, scales = "free_y") +
       labs(title    = "Johnson-Neyman : différences de pente poly1 entre émotions",
@@ -234,7 +234,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
       geom_line(linewidth = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
       scale_fill_manual(values = c("TRUE" = "deeppink2", "FALSE" = "grey70"),
-                        labels = c("TRUE" = "p < .05", "FALSE" = "p ≥ .05"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
                         name   = "") +
       facet_wrap(~ Emotion) +
       labs(title    = "Johnson-Neyman : poly1 slope per Emotion by EPDS",
@@ -251,30 +251,209 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     )
   }
   
-  # POST-HOC 2 - epds_total:poly1
+  # POST-HOC - Emotion:epds_total:poly2
+  emotion_epds_poly2_idx=which(rownames(anova_results)=='Emotion:epds_total:poly2')
+  if(anova_results$`Pr(>Chisq)`[emotion_epds_poly2_idx]<0.05) {
+    print("\n--- POST-HOC : Emotion:epds_total:poly2 ---\n")
+    emtrends_triple <- emtrends(mod, ~ Emotion | epds_total,
+                                var = "poly2",
+                                at  = list(epds_total = epds_levels))
+    print(emtrends_triple)
+    print(pairs(emtrends_triple, adjust = "tukey"))
+    
+    # JOHNSON-NEYMAN : pairs emotions
+    cat("\n--- JOHNSON-NEYMAN : paires entre emotions ---\n")
+    jn_trends <- emtrends(mod, ~ Emotion | epds_total,
+                          var = "poly2",
+                          at  = list(epds_total = epds_range))
+    jn_df <- as.data.frame(pairs(jn_trends, adjust = "none"))
+    
+    jn_sig <- jn_df %>%
+      mutate(contrast = as.character(contrast),
+             sig      = p.value < 0.05) %>%
+      dplyr::group_by(contrast) %>%
+      dplyr::summarise(
+        epds_min_sig = ifelse(any(sig), min(epds_total[sig]), NA),
+        epds_max_sig = ifelse(any(sig), max(epds_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig),
+        .groups      = "drop"
+      )
+    print(jn_sig)
+    
+    dev.new()
+    p_jn_pairs <- jn_df %>%
+      mutate(contrast = as.character(contrast),
+             sig      = p.value < 0.05) %>%
+      ggplot(aes(x = epds_total, y = estimate)) +
+      geom_ribbon(aes(ymin = estimate - 1.96 * SE,
+                      ymax = estimate + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "blue", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      facet_wrap(~ contrast, scales = "free_y") +
+      labs(title    = "Johnson-Neyman : différences de pente poly2 entre emotions",
+           subtitle = "Zone bleue = différence significative (p < .05)",
+           x        = "Score EPDS",
+           y        = "Difference de pente (poly2)") +
+      theme_bw()
+    print(p_jn_pairs)
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly2_pairwise.pdf')
+    ggsave(
+      out_fname,
+      p_jn_pairs,
+      dpi = 300
+    )
+    
+    # JOHNSON-NEYMAN : Emotion
+    cat("\n--- JOHNSON-NEYMAN : par Emotion ---\n")
+    jn_trends_byemotion <- emtrends(mod, ~ epds_total | Emotion,
+                                    var = "poly2",
+                                    at  = list(epds_total = epds_range))
+    
+    jn_df_byemotion <- as.data.frame(jn_trends_byemotion) %>%
+      mutate(z     = poly2.trend / SE,
+             p_val = 2 * (1 - pnorm(abs(z))),
+             sig   = p_val < 0.05)
+    
+    jn_sig_byemotion <- jn_df_byemotion %>%
+      dplyr::group_by(Emotion) %>%
+      dplyr::summarise(
+        epds_min_sig = ifelse(any(sig), min(epds_total[sig]), NA),
+        epds_max_sig = ifelse(any(sig), max(epds_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig),
+        .groups      = "drop"
+      )
+    print(jn_sig_byemotion)
+    
+    dev.new()
+    p_jn_emotion <- jn_df_byemotion %>%
+      ggplot(aes(x = epds_total, y = poly2.trend)) +
+      geom_ribbon(aes(ymin = poly2.trend - 1.96 * SE,
+                      ymax = poly2.trend + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "deeppink2", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      facet_wrap(~ Emotion) +
+      labs(title    = "Johnson-Neyman : poly2 slope per Emotion by EPDS",
+           subtitle = "Pink zone = slope significantly different from 0 (p < .05)",
+           x        = "EPDS Score",
+           y        = "poly2 Slope") +
+      theme_bw()
+    print(p_jn_emotion)
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_emotion_x_epds_x_poly2.pdf')
+    ggsave(
+      out_fname,
+      p_jn_emotion,
+      dpi = 300
+    )
+  }
+  
+  # POST-HOC - epds_total:poly1
   epds_poly1_idx=which(rownames(anova_results)=='epds_total:poly1')
   if(anova_results$`Pr(>Chisq)`[epds_poly1_idx]<0.05){
-    cat("\n--- POST-HOC 2 : epds_total:poly1 ---\n")
-    emtrends_poly1 <- emtrends(mod, ~ epds_total, var = "poly1",
-                               at = list(epds_total = epds_levels))
-    print(emtrends_poly1)
-    print(pairs(emtrends_poly1, adjust = "tukey"))
+    cat("\n--- POST-HOC : epds_total:poly1 ---\n")
+    jn_poly1 <- emtrends(mod, ~ epds_total, var = "poly1",
+                         at = list(epds_total = epds_range))
+    
+    jn_poly1_df <- as.data.frame(jn_poly1) %>%
+      mutate(z     = poly1.trend / SE,
+             p_val = 2 * (1 - pnorm(abs(z))),
+             sig   = p_val < 0.05)
+    
+    jn_poly1_sig <- jn_poly1_df %>%
+      dplyr::summarise(
+        epds_min_sig = ifelse(any(sig), min(epds_total[sig]), NA),
+        epds_max_sig = ifelse(any(sig), max(epds_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig)
+      )
+    print(jn_poly1_sig)
+    
+    dev.new()
+    p_jn_poly1 <- jn_poly1_df %>%
+      ggplot(aes(x = epds_total, y = poly1.trend)) +
+      geom_ribbon(aes(ymin = poly1.trend - 1.96 * SE,
+                      ymax = poly1.trend + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "darkorange", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      labs(title    = "Johnson-Neyman : poly1 slope by EPDS score",
+           subtitle = "Orange zone = slope significantly different from 0 (p < .05)",
+           x        = "EPDS score",
+           y        = "Poly1 slope") +
+      theme_bw()
+    print(p_jn_poly1)
+    
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_epds_x_poly1.pdf')
+    ggsave(
+      out_fname,
+      p_jn_poly1,
+      dpi = 300
+    )
   }
   
-  # POST-HOC 3 - epds_total:poly2
+  # POST-HOC - epds_total:poly2
   epds_poly2_idx=which(rownames(anova_results)=='epds_total:poly2')
   if(anova_results$`Pr(>Chisq)`[epds_poly2_idx]<0.05){
-    cat("\n--- POST-HOC 3 : epds_total:poly2 ---\n")
-    emtrends_poly2 <- emtrends(mod, ~ epds_total, var = "poly2",
-                               at = list(epds_total = epds_levels))
-    print(emtrends_poly2)
-    print(pairs(emtrends_poly2, adjust = "tukey"))
+    cat("\n--- POST-HOC : epds_total:poly2 ---\n")
+    jn_poly2 <- emtrends(mod, ~ epds_total, var = "poly2",
+                         at = list(epds_total = epds_range))
+    
+    jn_poly2_df <- as.data.frame(jn_poly2) %>%
+      mutate(z     = poly2.trend / SE,
+             p_val = 2 * (1 - pnorm(abs(z))),
+             sig   = p_val < 0.05)
+    
+    jn_poly2_sig <- jn_poly2_df %>%
+      dplyr::summarise(
+        epds_min_sig = ifelse(any(sig), min(epds_total[sig]), NA),
+        epds_max_sig = ifelse(any(sig), max(epds_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig)
+      )
+    print(jn_poly2_sig)
+    
+    dev.new()
+    p_jn_poly2 <- jn_poly2_df %>%
+      ggplot(aes(x = epds_total, y = poly2.trend)) +
+      geom_ribbon(aes(ymin = poly2.trend - 1.96 * SE,
+                      ymax = poly2.trend + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "darkorange", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      labs(title    = "Johnson-Neyman : poly2 slope by EPDS score",
+           subtitle = "Orange zone = slope significantly different from 0 (p < .05)",
+           x        = "EPDS score",
+           y        = "Poly2 slope") +
+      theme_bw()
+    print(p_jn_poly2)
+    
+    out_fname=paste0('./figures/epds_eyetracking/epds_eyetracking_gca_',file_suffix,'_epds_x_poly2.pdf')
+    ggsave(
+      out_fname,
+      p_jn_poly2,
+      dpi = 300
+    )
   }
   
-  # POST-HOC 4 - Emotion
+  # POST-HOC - Emotion
   emotion_main_idx=which(rownames(anova_results)=='Emotion')
   if(anova_results$`Pr(>Chisq)`[emotion_main_idx]<0.05){
-    cat("\n--- POST-HOC 4 : Emotion ---\n")
+    cat("\n--- POST-HOC : Emotion ---\n")
     emmeans_emotion <- emmeans(mod, ~ Emotion, type = "response")
     print(emmeans_emotion)
     print(pairs(emmeans_emotion, adjust = "tukey"))
@@ -284,6 +463,12 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
 
 # plot ----
 plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
+  
+  epds_levels <- c(
+    mean(data_poly$epds_total, na.rm = TRUE) - sd(data_poly$epds_total, na.rm = TRUE),
+    mean(data_poly$epds_total, na.rm = TRUE),
+    mean(data_poly$epds_total, na.rm = TRUE) + sd(data_poly$epds_total, na.rm = TRUE)
+  )
   
   # Fitted values
   data_poly$Fitted <- NA
@@ -305,12 +490,14 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
   pred_3levels <- expand.grid(
     tmp        = unique(data_poly[[predictor_time]]),
     Emotion    = unique(data_poly$Emotion),
-    epds_total = c(0, 12.5, 25)
+    epds_total = epds_levels
   ) %>%
     dplyr::rename(!!predictor_time := tmp) %>%
     mutate(epds_label = factor(epds_total,
-                               levels = c(0, 12.5, 25),
-                               labels = c("EPDS = 0", "EPDS = 12.5", "EPDS = 25")))
+                               levels = epds_levels,
+                               labels = c("EPDS = M-SD", 
+                                          "EPDS = M", 
+                                          "EPDS = M+SD")))
   
   pred_3levels <- code.poly(
     df         = pred_3levels,
@@ -352,9 +539,9 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     facet_grid(~ Emotion) +
     scale_x_continuous(breaks = unique(data_poly[[predictor_time]])) +
     scale_color_gradient(low = "blue", high = "red", name = "Score EPDS") +
-    scale_linetype_manual(values = c("EPDS = 0"    = "solid",
-                                     "EPDS = 12.5" = "solid",
-                                     "EPDS = 25"   = "solid"),
+    scale_linetype_manual(values = c("EPDS = M-SD"    = "solid",
+                                     "EPDS = M" = "solid",
+                                     "EPDS = M+SD"   = "solid"),
                           name   = "EPDS level") +
     labs(title = paste0("DwellTime ~ EPDS * (poly1 + poly2) | ", predictor_time),
          x     = x_label,
@@ -511,7 +698,7 @@ for(time_period in time_periods) {
             x_label        = "Age (days)",
             file_suffix
   )
-  
+  graphics.off()
   
   
   # MODEL 5 : Age (months) — raw data with motion control ----

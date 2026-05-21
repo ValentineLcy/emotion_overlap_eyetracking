@@ -187,7 +187,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
       geom_line(linewidth = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
       scale_fill_manual(values = c("TRUE" = "blue", "FALSE" = "grey70"),
-                        labels = c("TRUE" = "p < .05", "FALSE" = "p ≥ .05"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
                         name   = "") +
       facet_wrap(~ contrast, scales = "free_y") +
       labs(title    = "Johnson-Neyman : différences de pente poly1 entre émotions",
@@ -234,7 +234,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
       geom_line(linewidth = 1) +
       geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
       scale_fill_manual(values = c("TRUE" = "deeppink2", "FALSE" = "grey70"),
-                        labels = c("TRUE" = "p < .05", "FALSE" = "p ≥ .05"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
                         name   = "") +
       facet_wrap(~ Emotion) +
       labs(title    = "Johnson-Neyman : poly1 slope per Emotion by BAI",
@@ -255,20 +255,96 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
   bai_poly1_idx=which(rownames(anova_results)=='bai_total:poly1')
   if(anova_results$`Pr(>Chisq)`[bai_poly1_idx]<0.05){
     cat("\n--- POST-HOC 2 : bai_total:poly1 ---\n")
-    emtrends_poly1 <- emtrends(mod, ~ bai_total, var = "poly1",
-                               at = list(bai_total = bai_levels))
-    print(emtrends_poly1)
-    print(pairs(emtrends_poly1, adjust = "tukey"))
+    
+    jn_poly1 <- emtrends(mod, ~ bai_total, var = "poly1",
+                         at = list(bai_total = bai_range))
+    
+    print(jn_poly1)
+    print(pairs(jn_poly1, adjust = "tukey"))
+    
+    jn_poly1_df <- as.data.frame(jn_poly1) %>%
+      mutate(z     = poly1.trend / SE,
+             p_val = 2 * (1 - pnorm(abs(z))),
+             sig   = p_val < 0.05)
+    
+    jn_poly1_sig <- jn_poly1_df %>%
+      dplyr::summarise(
+        bai_min_sig = ifelse(any(sig), min(bai_total[sig]), NA),
+        bai_max_sig = ifelse(any(sig), max(bai_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig)
+      )
+    print(jn_poly1_sig)
+    
+    dev.new()
+    p_jn_poly1 <- jn_poly1_df %>%
+      ggplot(aes(x = bai_total, y = poly1.trend)) +
+      geom_ribbon(aes(ymin = poly1.trend - 1.96 * SE,
+                      ymax = poly1.trend + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "deeppink2", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      labs(title    = "Johnson-Neyman : poly1 slope per Emotion by BAI",
+           subtitle = "Pink zone = slope significantly different from 0 (p < .05)",
+           x        = "BAI score",
+           y        = "poly1 Slope") +
+      theme_bw()
+    print(p_jn_poly1)
+    out_fname=paste0('./figures/bai_eyetracking/bai_eyetracking_gca_',file_suffix,'_bai_x_poly1.pdf')
+    ggsave(
+      out_fname,
+      p_jn_poly1,
+      dpi = 300
+    )
   }
   
   # POST-HOC 3 - bai_total:poly2
   bai_poly2_idx=which(rownames(anova_results)=='bai_total:poly2')
   if(anova_results$`Pr(>Chisq)`[bai_poly2_idx]<0.05){
     cat("\n--- POST-HOC 3 : bai_total:poly2 ---\n")
-    emtrends_poly2 <- emtrends(mod, ~ bai_total, var = "poly2",
-                               at = list(bai_total = bai_levels))
-    print(emtrends_poly2)
-    print(pairs(emtrends_poly2, adjust = "tukey"))
+    jn_poly2 <- emtrends(mod, ~ bai_total, var = "poly2",
+                         at = list(bai_total = bai_range))
+    
+    jn_poly2_df <- as.data.frame(jn_poly2) %>%
+      mutate(z     = poly2.trend / SE,
+             p_val = 2 * (1 - pnorm(abs(z))),
+             sig   = p_val < 0.05)
+    
+    jn_poly2_sig <- jn_poly2_df %>%
+      dplyr::summarise(
+        bai_min_sig = ifelse(any(sig), min(bai_total[sig]), NA),
+        bai_max_sig = ifelse(any(sig), max(bai_total[sig]), NA),
+        always_sig   = all(sig),
+        never_sig    = !any(sig)
+      )
+    print(jn_poly2_sig)
+    
+    dev.new()
+    p_jn_poly2 <- jn_poly2_df %>%
+      ggplot(aes(x = bai_total, y = poly2.trend)) +
+      geom_ribbon(aes(ymin = poly2.trend - 1.96 * SE,
+                      ymax = poly2.trend + 1.96 * SE,
+                      fill = sig), alpha = 0.3) +
+      geom_line(linewidth = 1) +
+      geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+      scale_fill_manual(values = c("TRUE" = "darkorange", "FALSE" = "grey70"),
+                        labels = c("TRUE" = "p < .05", "FALSE" = "p >= .05"),
+                        name   = "") +
+      labs(title    = "Johnson-Neyman : poly2 slope by BAI score",
+           subtitle = "Orange zone = slope significantly different from 0 (p < .05)",
+           x        = "Score bai",
+           y        = "Pente poly2") +
+      theme_bw()
+    print(p_jn_poly2)
+    out_fname=paste0('./figures/bai_eyetracking/bai_eyetracking_gca_',file_suffix,'_bai_x_poly2.pdf')
+    ggsave(
+      out_fname,
+      p_jn_poly2,
+      dpi = 300
+    )
   }
   
   # POST-HOC 4 - Emotion
@@ -284,6 +360,12 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
 
 # plot ----
 plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
+  
+  bai_levels <- c(
+    mean(data_poly$bai_total, na.rm = TRUE) - sd(data_poly$bai_total, na.rm = TRUE),
+    mean(data_poly$bai_total, na.rm = TRUE),
+    mean(data_poly$bai_total, na.rm = TRUE) + sd(data_poly$bai_total, na.rm = TRUE)
+  )
   
   # Fitted values
   data_poly$Fitted <- NA
@@ -305,12 +387,12 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
   pred_3levels <- expand.grid(
     tmp        = unique(data_poly[[predictor_time]]),
     Emotion    = unique(data_poly$Emotion),
-    bai_total = c(0, 31.5, 63)
+    bai_total = bai_levels
   ) %>%
     dplyr::rename(!!predictor_time := tmp) %>%
     mutate(bai_label = factor(bai_total,
-                               levels = c(0, 31.5, 63),
-                               labels = c("BAI = 0", "BAI = 31.5", "BAI = 63")))
+                               levels = bai_levels,
+                               labels = c("BAI = M-SD", "BAI = M", "BAI = M+SD")))
   
   pred_3levels <- code.poly(
     df         = pred_3levels,
@@ -352,9 +434,9 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     facet_grid(~ Emotion) +
     scale_x_continuous(breaks = unique(data_poly[[predictor_time]])) +
     scale_color_gradient(low = "blue", high = "red", name = "Score BAI") +
-    scale_linetype_manual(values = c("BAI = 0"    = "solid",
-                                     "BAI = 31.5" = "solid",
-                                     "BAI = 63"   = "solid"),
+    scale_linetype_manual(values = c("BAI = M-SD"    = "solid",
+                                     "BAI = M" = "solid",
+                                     "BAI = M+SD"   = "solid"),
                           name   = "BAI level") +
     labs(title = paste0("DwellTime ~ BAI * (poly1 + poly2) | ", predictor_time),
          x     = x_label,
