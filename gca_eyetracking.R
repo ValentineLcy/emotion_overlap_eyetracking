@@ -207,7 +207,7 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     geom_line(data = pred_3levels, aes(x = as.numeric(.data[[predictor_time]]), y = Fitted, color = Emotion), size = 1) +
     facet_grid(~Emotion) +
     labs(
-      x = "Age (days)",
+      x = x_label,
       y = "Dwell time (proportion)"
     ) +
     theme_bw()
