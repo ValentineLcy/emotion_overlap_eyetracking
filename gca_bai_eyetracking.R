@@ -146,10 +146,10 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     length.out = 100
   )
   
-  # POST-HOC 1 - Emotion:bai_total:poly1
+  # POST-HOC - Emotion:bai_total:poly1
   emotion_bai_poly1_idx=which(rownames(anova_results)=='Emotion:bai_total:poly1')
   if(anova_results$`Pr(>Chisq)`[emotion_bai_poly1_idx]<0.05) {
-    print("\n--- POST-HOC 1 : Emotion:bai_total:poly1 ---\n")
+    print("\n--- POST-HOC : Emotion:bai_total:poly1 ---\n")
     emtrends_triple <- emtrends(mod, ~ Emotion | bai_total,
                                 var = "poly1",
                                 at  = list(bai_total = bai_levels))
@@ -251,16 +251,35 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     )
   }
   
-  # POST-HOC 2 - bai_total:poly1
+  # ---- EMtrends for interaction Emotion x poly1 ----
+  # slopes pairs comparison of poly1 between emotion
+  emotion_poly1_idx=which(rownames(anova_results)=='Emotion:poly1')
+  if(anova_results$`Pr(>Chisq)`[emotion_poly1_idx]<0.05) {
+    print('Emotion x poly1')
+    emt_interaction_poly1 <- emtrends(mod, ~ Emotion, var = "poly1")
+    print(summary(emt_interaction_poly1, infer=c(TRUE,TRUE)))
+    pairs_trends_linear <- pairs(emt_interaction_poly1, adjust = "tukey")
+    print(pairs_trends_linear)
+  }
+  
+  # ---- EMtrends for interaction Emotion x poly2 ----
+  # slopes pairs comparison of poly2 between emotion
+  emotion_poly2_idx=which(rownames(anova_results)=='Emotion:poly2')
+  if(anova_results$`Pr(>Chisq)`[emotion_poly2_idx]<0.05) {
+    print('Emotion x poly2')
+    emt_interaction_poly2 <- emtrends(mod, ~ Emotion, var = "poly2")
+    print(summary(emt_interaction_poly, infer=c(TRUE,TRUE)))
+    pairs_trends_quad <- pairs(emt_interaction_poly2, adjust = "tukey")
+    print(pairs_trends_quad)
+  }
+  
+  # POST-HOC - bai_total:poly1
   bai_poly1_idx=which(rownames(anova_results)=='bai_total:poly1')
   if(anova_results$`Pr(>Chisq)`[bai_poly1_idx]<0.05){
-    cat("\n--- POST-HOC 2 : bai_total:poly1 ---\n")
+    cat("\n--- POST-HOC : bai_total:poly1 ---\n")
     
     jn_poly1 <- emtrends(mod, ~ bai_total, var = "poly1",
                          at = list(bai_total = bai_range))
-    
-    print(jn_poly1)
-    print(pairs(jn_poly1, adjust = "tukey"))
     
     jn_poly1_df <- as.data.frame(jn_poly1) %>%
       mutate(z     = poly1.trend / SE,
@@ -301,10 +320,10 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     )
   }
   
-  # POST-HOC 3 - bai_total:poly2
+  # POST-HOC - bai_total:poly2
   bai_poly2_idx=which(rownames(anova_results)=='bai_total:poly2')
   if(anova_results$`Pr(>Chisq)`[bai_poly2_idx]<0.05){
-    cat("\n--- POST-HOC 3 : bai_total:poly2 ---\n")
+    cat("\n--- POST-HOC : bai_total:poly2 ---\n")
     jn_poly2 <- emtrends(mod, ~ bai_total, var = "poly2",
                          at = list(bai_total = bai_range))
     
@@ -347,10 +366,10 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
     )
   }
   
-  # POST-HOC 4 - Emotion
+  # POST-HOC - Emotion
   emotion_main_idx=which(rownames(anova_results)=='Emotion')
   if(anova_results$`Pr(>Chisq)`[emotion_main_idx]<0.05){
-    cat("\n--- POST-HOC 4 : Emotion ---\n")
+    cat("\n--- POST-HOC : Emotion ---\n")
     emmeans_emotion <- emmeans(mod, ~ Emotion, type = "response")
     print(emmeans_emotion)
     print(pairs(emmeans_emotion, adjust = "tukey"))
@@ -361,11 +380,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
 # plot ----
 plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
   
-  bai_levels <- c(
-    mean(data_poly$bai_total, na.rm = TRUE) - sd(data_poly$bai_total, na.rm = TRUE),
-    mean(data_poly$bai_total, na.rm = TRUE),
-    mean(data_poly$bai_total, na.rm = TRUE) + sd(data_poly$bai_total, na.rm = TRUE)
-  )
+  bai_levels <- c(0.0, 8.0, 16.0)
   
   # Fitted values
   data_poly$Fitted <- NA
@@ -392,7 +407,7 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     dplyr::rename(!!predictor_time := tmp) %>%
     mutate(bai_label = factor(bai_total,
                                levels = bai_levels,
-                               labels = c("BAI = M-SD", "BAI = M", "BAI = M+SD")))
+                               labels = c("BAI = 0.0", "BAI = 8.0", "BAI = 16.0")))
   
   pred_3levels <- code.poly(
     df         = pred_3levels,
@@ -431,15 +446,17 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
                   group    = bai_label,
                   linetype = bai_label),
               size = 1.2) +
-    facet_grid(~ Emotion) +
-    scale_x_continuous(breaks = unique(data_poly[[predictor_time]])) +
+    facet_grid(~ Emotion)
+  if(predictor_time=='Age'){
+    p <- p + scale_x_continuous(breaks = unique(data_poly[[predictor_time]]))
+  }
+  p <- p +
     scale_color_gradient(low = "blue", high = "red", name = "Score BAI") +
-    scale_linetype_manual(values = c("BAI = M-SD"    = "solid",
-                                     "BAI = M" = "solid",
-                                     "BAI = M+SD"   = "solid"),
+    scale_linetype_manual(values = c("BAI = 0.0"    = "solid",
+                                     "BAI = 8.0" = "solid",
+                                     "BAI = 16.0"   = "solid"),
                           name   = "BAI level") +
-    labs(title = paste0("DwellTime ~ BAI * (poly1 + poly2) | ", predictor_time),
-         x     = x_label,
+    labs(x     = x_label,
          y     = "Dwell time (proportion)") +
     theme_bw()
   
