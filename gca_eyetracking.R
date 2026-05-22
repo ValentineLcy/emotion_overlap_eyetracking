@@ -144,6 +144,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix){
   if(anova_results$`Pr(>Chisq)`[emotion_poly1_idx]<0.05) {
     print('Emotion x poly1')
     emt_interaction_poly1 <- emtrends(mod, ~ Emotion, var = "poly1")
+    print(summary(emt_interaction_poly1, infer=c(TRUE,TRUE)))
     pairs_trends_linear <- pairs(emt_interaction_poly1, adjust = "tukey")
     print(pairs_trends_linear)
   }
@@ -154,6 +155,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix){
   if(anova_results$`Pr(>Chisq)`[emotion_poly2_idx]<0.05) {
     print('Emotion x poly2')
     emt_interaction_poly2 <- emtrends(mod, ~ Emotion, var = "poly2")
+    print(summary(emt_interaction_poly, infer=c(TRUE,TRUE)))
     pairs_trends_quad <- pairs(emt_interaction_poly2, adjust = "tukey")
     print(pairs_trends_quad)
   }
