@@ -464,11 +464,7 @@ run_posthoc <- function(mod, data_poly, anova_results, file_suffix) {
 # plot ----
 plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
   
-  epds_levels <- c(
-    mean(data_poly$epds_total, na.rm = TRUE) - sd(data_poly$epds_total, na.rm = TRUE),
-    mean(data_poly$epds_total, na.rm = TRUE),
-    mean(data_poly$epds_total, na.rm = TRUE) + sd(data_poly$epds_total, na.rm = TRUE)
-  )
+  epds_levels <- c(0, 12.5, 25)
   
   # Fitted values
   data_poly$Fitted <- NA
@@ -495,9 +491,9 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
     dplyr::rename(!!predictor_time := tmp) %>%
     mutate(epds_label = factor(epds_total,
                                levels = epds_levels,
-                               labels = c("EPDS = M-SD", 
-                                          "EPDS = M", 
-                                          "EPDS = M+SD")))
+                               labels = c("EPDS = 0.0", 
+                                          "EPDS = 12.5", 
+                                          "EPDS = 25.0")))
   
   pred_3levels <- code.poly(
     df         = pred_3levels,
@@ -536,15 +532,17 @@ plot_mod3 <- function(mod, data_poly, predictor_time, x_label, file_suffix) {
                   group    = epds_label,
                   linetype = epds_label),
               size = 1.2) +
-    facet_grid(~ Emotion) +
-    scale_x_continuous(breaks = unique(data_poly[[predictor_time]])) +
+    facet_grid(~ Emotion)
+  if(predictor_time=='Age'){
+    p <- p + scale_x_continuous(breaks = unique(data_poly[[predictor_time]]))
+  }
+  p <- p +
     scale_color_gradient(low = "blue", high = "red", name = "Score EPDS") +
-    scale_linetype_manual(values = c("EPDS = M-SD"    = "solid",
-                                     "EPDS = M" = "solid",
-                                     "EPDS = M+SD"   = "solid"),
+    scale_linetype_manual(values = c("EPDS = 0.0"    = "solid",
+                                     "EPDS = 12.5" = "solid",
+                                     "EPDS = 25.0"   = "solid"),
                           name   = "EPDS level") +
-    labs(title = paste0("DwellTime ~ EPDS * (poly1 + poly2) | ", predictor_time),
-         x     = x_label,
+    labs(x     = x_label,
          y     = "Dwell time (proportion)") +
     theme_bw()
   
